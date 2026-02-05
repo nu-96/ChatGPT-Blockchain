@@ -93,6 +93,9 @@ let provider;
 let signer;
 let contract;
 
+const urlParams = new URLSearchParams(window.location.search);
+const MOCK_WALLET = urlParams.get('mock_wallet') === 'true';
+
 const connectBtn = document.getElementById('connect-btn');
 const submitBtn = document.getElementById('submit-btn');
 const withdrawBtn = document.getElementById('withdraw-btn');
@@ -101,20 +104,43 @@ const paymentStatus = document.getElementById('payment-status');
 const chatForm = document.getElementById('chat-form');
 const responseDiv = document.getElementById('response');
 
+// Simplified connection logic for better wallet compatibility (Phantom/MetaMask)
 async function connectWallet() {
+    if (MOCK_WALLET) {
+        console.log("MOCK_WALLET mode active");
+        const address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+
+        walletStatus.innerHTML = `Connected (MOCK): <span class="info">${address.substring(0, 6)}...${address.substring(38)}</span>`;
+        connectBtn.innerText = "Wallet Connected";
+        submitBtn.disabled = false;
+
+        contract = {
+            owner: async () => "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            pay: async () => ({ hash: "0xMockTxHash", wait: async () => { } }),
+            withdraw: async () => ({ hash: "0xMockTxHash", wait: async () => { } })
+        };
+
+        withdrawBtn.disabled = false;
+        return;
+    }
+
     const ethereumProvider = window.phantom?.ethereum || window.ethereum;
 
     if (typeof ethereumProvider !== 'undefined') {
         try {
-            // Request account access
             await ethereumProvider.request({ method: 'eth_requestAccounts' });
             provider = new ethers.providers.Web3Provider(ethereumProvider);
             signer = provider.getSigner();
             const address = await signer.getAddress();
 
             const { chainId } = await provider.getNetwork();
-            if (chainId !== 31337) {
-                alert(`Wrong network! Please connect your wallet to Localhost 8545 (Chain ID 31337). Current Chain ID: ${chainId}`);
+            if (chainId !== 11155111) {
+                walletStatus.innerHTML = `
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; padding: 15px; margin-top: 10px;">
+                        <span class="error" style="font-weight: bold;">Wrong Network Detected</span><br>
+                        <span style="font-size: 0.9rem; color: #9ca3af;">Please switch your wallet to <b>Sepolia Testnet</b> (Chain ID: 11155111).</span>
+                    </div>
+                `;
                 return;
             }
 
