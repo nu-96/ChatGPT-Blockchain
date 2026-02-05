@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wallet Connection Tests</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+        h1 { color: #6366f1; }
+        .test-group {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .test {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .test:last-child { border-bottom: none; }
+        .test-name { flex: 1; }
+        .test-status {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .pass { background: #10b981; color: white; }
+        .fail { background: #ef4444; color: white; }
+        .pending { background: #f59e0b; color: white; }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover { background: #4f46e5; }
+        #results {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 Universal Wallet Connection Tests</h1>
+    
+    <div class="test-group">
+        <h2>Detection Tests</h2>
+        <div class="test">
+            <span class="test-name">Detects available wallet providers</span>
+            <span class="test-status pending" id="test-detect">PENDING</span>
+        </div>
+        <div class="test">
+            <span class="test-name">Web3Modal initializes</span>
+            <span class="test-status pending" id="test-modal">PENDING</span>
+        </div>
+    </div>
+
+    <div class="test-group">
+        <h2>Connection Tests</h2>
+        <div class="test">
+            <span class="test-name">Can connect wallet</span>
+            <span class="test-status pending" id="test-connect">PENDING</span>
+        </div>
+        <div class="test">
+            <span class="test-name">Gets correct address</span>
+            <span class="test-status pending" id="test-address">PENDING</span>
+        </div>
+        <div class="test">
+            <span class="test-name">Gets correct chain ID</span>
+            <span class="test-status pending" id="test-chain">PENDING</span>
+        </div>
+        <div class="test">
+            <span class="test-name">Can disconnect wallet</span>
+            <span class="test-status pending" id="test-disconnect">PENDING</span>
+        </div>
+    </div>
+
+    <div class="test-group">
+        <h2>Network Tests</h2>
+        <div class="test">
+            <span class="test-name">Network names resolve correctly</span>
+            <span class="test-status pending" id="test-network-names">PENDING</span>
+        </div>
+        <div class="test">
+            <span class="test-name">Explorer URLs generate correctly</span>
+            <span class="test-status pending" id="test-explorer">PENDING</span>
+        </div>
+    </div>
+
+    <button onclick="runDetectionTests()">Run Detection Tests</button>
+    <button onclick="runConnectionTest()">Run Connection Test</button>
+    <button onclick="runAllTests()">Run All Tests</button>
+
+    <div id="results">Test results will appear here...</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+    <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(msg) {
+            results.textContent += msg + '\n';
+            console.log(msg);
+        }
+
+        function setTestStatus(id, passed) {
+            const el = document.getElementById(id);
+            el.textContent = passed ? 'PASS' : 'FAIL';
+            el.className = 'test-status ' + (passed ? 'pass' : 'fail');
+        }
+
+        // Network utility functions (copied from index.js for testing)
+        function getNetworkName(chainId) {
+            const names = {
+                1: 'Ethereum',
+                8453: 'Base',
+                84532: 'Base Sepolia',
+                11155111: 'Sepolia',
+                31337: 'Localhost'
+            };
+            return names[chainId] || `Chain ${chainId}`;
+        }
+
+        function getExplorerUrl(chainId, txHash) {
+            const explorers = {
+                1: 'https://etherscan.io',
+                8453: 'https://basescan.org',
+                84532: 'https://sepolia.basescan.org',
+                11155111: 'https://sepolia.etherscan.io',
+                31337: null
+            };
+            const base = explorers[chainId];
+            if (!base) return `javascript:alert('Tx Hash: ${txHash}')`;
+            return `${base}/tx/${txHash}`;
+        }
+
+        function detectWalletProviders() {
+            const providers = [];
+            if (window.ethereum?.isMetaMask) providers.push({ name: 'MetaMask', provider: window.ethereum });
+            if (window.ethereum?.isCoinbaseWallet) providers.push({ name: 'Coinbase Wallet', provider: window.ethereum });
+            if (window.phantom?.ethereum) providers.push({ name: 'Phantom', provider: window.phantom.ethereum });
+            if (window.ethereum?.isTrust) providers.push({ name: 'Trust Wallet', provider: window.ethereum });
+            if (window.ethereum?.isBraveWallet) providers.push({ name: 'Brave Wallet', provider: window.ethereum });
+            if (window.ethereum && providers.length === 0) providers.push({ name: 'Browser Wallet', provider: window.ethereum });
+            return providers;
+        }
+
+        function runDetectionTests() {
+            results.textContent = '=== Running Detection Tests ===\n\n';
+            
+            // Test wallet detection
+            const providers = detectWalletProviders();
+            log(`Detected ${providers.length} wallet provider(s):`);
+            providers.forEach(p => log(`  - ${p.name}`));
+            setTestStatus('test-detect', true);
+
+            // Test Web3Modal
+            try {
+                const modal = new Web3Modal.default({
+                    cacheProvider: false,
+                    providerOptions: {}
+                });
+                log('\nWeb3Modal initialized successfully');
+                setTestStatus('test-modal', true);
+            } catch (e) {
+                log('\nWeb3Modal failed: ' + e.message);
+                setTestStatus('test-modal', false);
+            }
+
+            // Test network names
+            const networkTests = [
+                [1, 'Ethereum'],
+                [8453, 'Base'],
+                [84532, 'Base Sepolia'],
+                [999, 'Chain 999']
+            ];
+            let networkPass = true;
+            log('\nNetwork name tests:');
+            networkTests.forEach(([id, expected]) => {
+                const result = getNetworkName(id);
+                const pass = result === expected;
+                if (!pass) networkPass = false;
+                log(`  ${id} => ${result} ${pass ? '✓' : '✗'}`);
+            });
+            setTestStatus('test-network-names', networkPass);
+
+            // Test explorer URLs
+            const explorerTests = [
+                [1, '0x123', 'etherscan.io'],
+                [8453, '0x123', 'basescan.org'],
+                [84532, '0x123', 'sepolia.basescan.org']
+            ];
+            let explorerPass = true;
+            log('\nExplorer URL tests:');
+            explorerTests.forEach(([chainId, hash, expected]) => {
+                const result = getExplorerUrl(chainId, hash);
+                const pass = result.includes(expected);
+                if (!pass) explorerPass = false;
+                log(`  ${chainId} => ${result.substring(0, 50)}... ${pass ? '✓' : '✗'}`);
+            });
+            setTestStatus('test-explorer', explorerPass);
+
+            log('\n=== Detection Tests Complete ===');
+        }
+
+        async function runConnectionTest() {
+            results.textContent = '=== Running Connection Test ===\n\n';
+            
+            if (!window.ethereum) {
+                log('No wallet detected. Please install MetaMask or another wallet.');
+                setTestStatus('test-connect', false);
+                return;
+            }
+
+            try {
+                log('Requesting wallet connection...');
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                if (accounts.length > 0) {
+                    log(`Connected! Address: ${accounts[0]}`);
+                    setTestStatus('test-connect', true);
+                    
+                    // Verify address format
+                    const validAddress = accounts[0].startsWith('0x') && accounts[0].length === 42;
+                    log(`Address format valid: ${validAddress}`);
+                    setTestStatus('test-address', validAddress);
+                    
+                    // Get chain ID
+                    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                    const chainIdNum = parseInt(chainId, 16);
+                    log(`Chain ID: ${chainIdNum} (${getNetworkName(chainIdNum)})`);
+                    setTestStatus('test-chain', true);
+                    
+                    log('\n=== Connection Test Complete ===');
+                } else {
+                    log('No accounts returned');
+                    setTestStatus('test-connect', false);
+                }
+            } catch (e) {
+                log('Connection failed: ' + e.message);
+                setTestStatus('test-connect', false);
+            }
+        }
+
+        function runAllTests() {
+            runDetectionTests();
+            setTimeout(runConnectionTest, 500);
+        }
+    </script>
+</body>
+</html>

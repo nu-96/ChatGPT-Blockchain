@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web3GPT - Payment Demo</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <script src="https://unpkg.com/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+    <script src="https://unpkg.com/web3modal@1.9.12/dist/index.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -49,8 +51,14 @@
 
         .wallet-section {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            gap: 0.5rem;
             margin-bottom: 2rem;
+        }
+
+        .wallet-buttons {
+            display: flex;
+            gap: 0.5rem;
         }
 
         button {
@@ -76,11 +84,24 @@
             transform: none;
         }
 
+        button.secondary {
+            background-color: #334155;
+        }
+
+        button.secondary:hover {
+            background-color: #475569;
+        }
+
         .input-group {
             margin-bottom: 1.5rem;
         }
 
-        input {
+        label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        input, select {
             width: 100%;
             padding: 0.75rem;
             border-radius: 0.5rem;
@@ -115,6 +136,28 @@
         .error {
             color: var(--error);
         }
+
+        .network-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            background-color: var(--success);
+            color: white;
+            margin-left: 0.5rem;
+        }
+
+        .network-badge.wrong {
+            background-color: var(--error);
+        }
+
+        .wallet-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 
@@ -123,7 +166,21 @@
         <h1>Web3GPT Payment</h1>
 
         <div class="wallet-section">
-            <button id="connect-btn">Connect Wallet</button>
+            <div class="wallet-buttons">
+                <button id="connect-btn">Connect Wallet</button>
+                <button id="disconnect-btn" class="secondary" style="display: none;">Disconnect</button>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="network-select">Network</label>
+            <select id="network-select">
+                <option value="31337">Localhost (31337)</option>
+                <option value="84532">Base Sepolia (84532)</option>
+                <option value="8453">Base Mainnet (8453)</option>
+                <option value="1">Ethereum Mainnet (1)</option>
+                <option value="11155111">Sepolia (11155111)</option>
+            </select>
         </div>
 
         <form id="chat-form">
@@ -142,7 +199,7 @@
         </div>
 
         <div style="margin-top: 2rem;">
-            <button id="withdraw-btn" style="background-color: #334155;" disabled>Withdraw Small Amount (Owner)</button>
+            <button id="withdraw-btn" style="background-color: #334155;" disabled>Withdraw (Owner Only)</button>
         </div>
     </div>
 
