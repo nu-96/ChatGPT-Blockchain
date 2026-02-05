@@ -135,6 +135,9 @@ function initWeb3Modal() {
         }
     };
 
+    // Override the injected provider detection to include CLV and other wallets
+    const injectedProvider = getInjectedProvider();
+    
     web3Modal = new Web3Modal.default({
         cacheProvider: true,
         providerOptions,
@@ -149,77 +152,136 @@ function initWeb3Modal() {
 }
 
 /**
+ * Direct connect for wallets not detected by Web3Modal (like CLV)
+ */
+async function connectDirect() {
+    const injectedProvider = getInjectedProvider();
+    
+    if (!injectedProvider) {
+        throw new Error('No wallet found. Please install a wallet extension.');
+    }
+    
+    await injectedProvider.request({ method: 'eth_requestAccounts' });
+    return injectedProvider;
+}
+
+/**
  * Detect all available wallet providers
  */
 function detectWalletProviders() {
     const providers = [];
-
+    
     // MetaMask
     if (window.ethereum?.isMetaMask) {
         providers.push({ name: 'MetaMask', provider: window.ethereum });
     }
-
+    
     // Coinbase Wallet
     if (window.ethereum?.isCoinbaseWallet) {
         providers.push({ name: 'Coinbase Wallet', provider: window.ethereum });
     }
-
+    
     // Phantom (Ethereum)
     if (window.phantom?.ethereum) {
         providers.push({ name: 'Phantom', provider: window.phantom.ethereum });
     }
-
+    
+    // CLV (Clover) Wallet
+    if (window.clover) {
+        providers.push({ name: 'CLV Wallet', provider: window.clover });
+    }
+    
     // Trust Wallet
     if (window.ethereum?.isTrust) {
         providers.push({ name: 'Trust Wallet', provider: window.ethereum });
     }
-
+    
     // Brave Wallet
     if (window.ethereum?.isBraveWallet) {
         providers.push({ name: 'Brave Wallet', provider: window.ethereum });
     }
-
+    
     // Generic fallback
     if (window.ethereum && providers.length === 0) {
         providers.push({ name: 'Browser Wallet', provider: window.ethereum });
     }
-
+    
     return providers;
 }
 
 /**
- * Connect wallet using Web3Modal
+ * Get the best available provider (checks multiple injection points)
+ */
+function getInjectedProvider() {
+    // Check for CLV/Clover first since it uses a different namespace
+    if (window.clover) return window.clover;
+    // Check Phantom Ethereum
+    if (window.phantom?.ethereum) return window.phantom.ethereum;
+    // Default to window.ethereum
+    return window.ethereum;
+}
+
+/**
+ * Connect wallet using Web3Modal with fallback to direct connection
  */
 async function connectWallet() {
     try {
-        // Use Web3Modal for connection
-        walletProvider = await web3Modal.connect();
-
+        // First, try to detect CLV or other non-standard wallets
+        const injectedProvider = getInjectedProvider();
+        
+        // If we have an injected provider that's not standard ethereum, connect directly
+        if (window.clover || (injectedProvider && !window.ethereum)) {
+            console.log('Using direct connection for non-standard wallet');
+            walletProvider = await connectDirect();
+        } else {
+            // Use Web3Modal for standard wallets
+            walletProvider = await web3Modal.connect();
+        }
+        
         // Create ethers provider
         provider = new ethers.providers.Web3Provider(walletProvider);
         signer = provider.getSigner();
         currentAddress = await signer.getAddress();
-
+        
         const network = await provider.getNetwork();
         currentChainId = network.chainId;
-
+        
         // Update UI
         updateWalletUI();
-
+        
         // Set up contract
         await setupContract();
-
+        
         // Set up event listeners for wallet events
         setupWalletEvents();
-
+        
         // Show disconnect button
         connectBtn.style.display = 'none';
         disconnectBtn.style.display = 'block';
-
+        
     } catch (error) {
         console.error('Connection error:', error);
         if (error.message !== 'Modal closed by user') {
-            walletStatus.innerHTML = `<span class="error">Connection failed: ${error.message}</span>`;
+            // Try direct connection as last resort
+            try {
+                console.log('Web3Modal failed, trying direct connection...');
+                walletProvider = await connectDirect();
+                provider = new ethers.providers.Web3Provider(walletProvider);
+                signer = provider.getSigner();
+                currentAddress = await signer.getAddress();
+                
+                const network = await provider.getNetwork();
+                currentChainId = network.chainId;
+                
+                updateWalletUI();
+                await setupContract();
+                setupWalletEvents();
+                
+                connectBtn.style.display = 'none';
+                disconnectBtn.style.display = 'block';
+            } catch (directError) {
+                walletStatus.innerHTML = `<span class="error">Connection failed: ${directError.message}</span>`;
+            }
         }
     }
 }
@@ -231,11 +293,11 @@ async function disconnectWallet() {
     if (web3Modal) {
         await web3Modal.clearCachedProvider();
     }
-
+    
     if (walletProvider?.disconnect) {
         await walletProvider.disconnect();
     }
-
+    
     // Reset state
     provider = null;
     signer = null;
@@ -243,7 +305,7 @@ async function disconnectWallet() {
     currentAddress = null;
     currentChainId = null;
     walletProvider = null;
-
+    
     // Reset UI
     walletStatus.innerHTML = 'Wallet not connected';
     connectBtn.innerText = 'Connect Wallet';
@@ -258,7 +320,7 @@ async function disconnectWallet() {
  */
 function setupWalletEvents() {
     if (!walletProvider) return;
-
+    
     // Account changed
     walletProvider.on('accountsChanged', async (accounts) => {
         if (accounts.length === 0) {
@@ -269,7 +331,7 @@ function setupWalletEvents() {
             await setupContract();
         }
     });
-
+    
     // Chain changed
     walletProvider.on('chainChanged', async (chainId) => {
         currentChainId = parseInt(chainId, 16);
@@ -277,7 +339,7 @@ function setupWalletEvents() {
         updateWalletUI();
         await setupContract();
     });
-
+    
     // Disconnect
     walletProvider.on('disconnect', async () => {
         await disconnectWallet();
@@ -291,17 +353,17 @@ function updateWalletUI() {
     const shortAddress = `${currentAddress.substring(0, 6)}...${currentAddress.substring(38)}`;
     const selectedNetwork = parseInt(networkSelect.value);
     const isCorrectNetwork = currentChainId === selectedNetwork;
-
+    
     const networkName = getNetworkName(currentChainId);
     const networkBadgeClass = isCorrectNetwork ? '' : 'wrong';
-
+    
     walletStatus.innerHTML = `
         <div class="wallet-info">
             <span class="info">${shortAddress}</span>
             <span class="network-badge ${networkBadgeClass}">${networkName}</span>
         </div>
     `;
-
+    
     if (!isCorrectNetwork) {
         walletStatus.innerHTML += `<div style="margin-top: 0.5rem; color: var(--error);">Please switch to ${getNetworkName(selectedNetwork)}</div>`;
     }
@@ -327,27 +389,27 @@ function getNetworkName(chainId) {
 async function setupContract() {
     const selectedNetwork = parseInt(networkSelect.value);
     const contractAddress = CONTRACT_ADDRESSES[selectedNetwork];
-
+    
     if (!contractAddress) {
         submitBtn.disabled = true;
         withdrawBtn.disabled = true;
         paymentStatus.innerHTML = `<span class="error">No contract deployed on ${getNetworkName(selectedNetwork)}</span>`;
         return;
     }
-
+    
     if (currentChainId !== selectedNetwork) {
         submitBtn.disabled = true;
         return;
     }
-
+    
     try {
         contract = new ethers.Contract(contractAddress, ABI, signer);
         submitBtn.disabled = false;
-
+        
         // Check if user is owner
         const ownerAddress = await contract.owner();
         withdrawBtn.disabled = currentAddress.toLowerCase() !== ownerAddress.toLowerCase();
-
+        
         paymentStatus.innerHTML = '';
     } catch (error) {
         console.error('Contract setup error:', error);
@@ -361,9 +423,9 @@ async function setupContract() {
  */
 async function switchNetwork(chainId) {
     if (!walletProvider) return;
-
+    
     const hexChainId = '0x' + chainId.toString(16);
-
+    
     try {
         await walletProvider.request({
             method: 'wallet_switchEthereumChain',
@@ -389,29 +451,29 @@ async function switchNetwork(chainId) {
  */
 async function handleSubmit(e) {
     e.preventDefault();
-
+    
     if (!contract) {
         alert("Please connect your wallet first!");
         return;
     }
-
+    
     const question = document.getElementById('question').value;
-
+    
     try {
         paymentStatus.innerHTML = "Awaiting payment confirmation...";
         submitBtn.disabled = true;
-
+        
         // Call the pay function with 0.001 ETH
         const tx = await contract.pay({
             value: ethers.utils.parseEther("0.001")
         });
-
+        
         const explorerUrl = getExplorerUrl(currentChainId, tx.hash);
         paymentStatus.innerHTML = `Payment pending: <a href="${explorerUrl}" target="_blank">View Tx</a>`;
-
+        
         await tx.wait();
         paymentStatus.innerHTML = `<span class="info">Payment confirmed! Submitting question...</span>`;
-
+        
         // Submit to backend
         responseDiv.innerHTML = 'Thinking...';
         const response = await fetch('http://localhost:8000/auth/register', {
@@ -419,7 +481,7 @@ async function handleSubmit(e) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ question }),
         });
-
+        
         const data = await response.json();
         if (data.status === 'success') {
             responseDiv.innerText = data.answer;
@@ -439,15 +501,15 @@ async function handleSubmit(e) {
  */
 async function handleWithdraw() {
     if (!contract) return;
-
+    
     try {
         paymentStatus.innerHTML = "Processing withdrawal...";
         withdrawBtn.disabled = true;
-
+        
         const tx = await contract.withdraw();
         const explorerUrl = getExplorerUrl(currentChainId, tx.hash);
         paymentStatus.innerHTML = `Withdrawal pending: <a href="${explorerUrl}" target="_blank">View Tx</a>`;
-
+        
         await tx.wait();
         paymentStatus.innerHTML = `<span class="info">Withdrawal successful!</span>`;
     } catch (error) {
@@ -469,7 +531,7 @@ function getExplorerUrl(chainId, txHash) {
         11155111: 'https://sepolia.etherscan.io',
         31337: null
     };
-
+    
     const base = explorers[chainId];
     if (!base) return `javascript:alert('Tx Hash: ${txHash}')`;
     return `${base}/tx/${txHash}`;
@@ -492,7 +554,7 @@ networkSelect.addEventListener('change', async (e) => {
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
     initWeb3Modal();
-
+    
     // Auto-connect if previously connected
     if (web3Modal.cachedProvider) {
         connectWallet();
