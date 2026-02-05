@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web3GPT - Payment Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .wallet-section {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background-color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            background-color: #0f172a;
+            color: white;
+            box-sizing: border-box;
+            margin-top: 0.5rem;
+        }
+
+        .status {
+            font-size: 0.875rem;
+            margin-top: 1rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        #response {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            min-height: 3rem;
+            font-size: 0.875rem;
+        }
+
+        .info {
+            color: var(--success);
+        }
+
+        .error {
+            color: var(--error);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Web3GPT Payment</h1>
+
+        <div class="wallet-section">
+            <button id="connect-btn">Connect Wallet</button>
+        </div>
+
+        <form id="chat-form">
+            <div class="input-group">
+                <label for="question">Your Question</label>
+                <input type="text" id="question" name="question" placeholder="Ask something..." required>
+            </div>
+            <button type="submit" id="submit-btn" disabled>Pay 0.001 ETH & Submit</button>
+        </form>
+
+        <div id="wallet-status" class="status">Wallet not connected</div>
+        <div id="payment-status" class="status"></div>
+
+        <div id="response">
+            <em>Response will appear here...</em>
+        </div>
+
+        <div style="margin-top: 2rem;">
+            <button id="withdraw-btn" style="background-color: #334155;" disabled>Withdraw Small Amount (Owner)</button>
+        </div>
+    </div>
+
+    <script src="index.js"></script>
+</body>
+
+</html>
